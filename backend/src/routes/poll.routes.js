@@ -1,14 +1,15 @@
-const express = require("express");
-const router = express.Router();
-const { authenticate } = require("../middleware/auth.middleware");
-const {
+import express from "express";
+import { authenticate } from "../middleware/auth.middleware.js";
+import {
   createPoll,
   getPolls,
   getPoll,
   getUserPolls,
   submitVote,
   getResults,
-} = require("../controllers/poll.controller");
+} from "../controllers/poll.controller.js";
+
+const router = express.Router();
 
 router.post("/", authenticate, createPoll);
 router.get("/", getPolls);
@@ -17,4 +18,4 @@ router.get("/:id", getPoll);
 router.post("/:id/vote", submitVote);
 router.get("/:id/results", getResults);
 
-module.exports = router;
+export default router;

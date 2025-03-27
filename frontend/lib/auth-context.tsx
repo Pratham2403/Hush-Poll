@@ -8,7 +8,7 @@ import { authAPI } from "./api";
 export type UserRole = "guest" | "user" | "admin";
 
 export type User = {
-  id: string;
+  // id: string;
   name: string;
   email: string;
   role: UserRole;
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .then((data) => {
           // Update user data if needed
           const updatedUser = {
-            id: data._id,
+            // id: data._id,
             name: data.name,
             email: data.email,
             role: data.role,
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await authAPI.login(email, password);
 
       const userData: User = {
-        id: data.user._id,
+        // id: data.user._id,
         name: data.user.name,
         email: data.user.email,
         role: data.user.role,
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await authAPI.register(name, email, password);
 
       const userData: User = {
-        id: data.user._id,
+        // id: data.user._id,
         name: data.user.name,
         email: data.user.email,
         role: data.user.role,

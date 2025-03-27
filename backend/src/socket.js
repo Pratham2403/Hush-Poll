@@ -1,6 +1,6 @@
-const logger = require('./utils/logger');
+import logger from './utils/logger.js';
 
-exports.setupSocketHandlers = (io) => {
+export const setupSocketHandlers = (io) => {
   io.on('connection', (socket) => {
     logger.info(`Client connected: ${socket.id}`);
 

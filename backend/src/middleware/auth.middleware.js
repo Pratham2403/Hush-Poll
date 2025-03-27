@@ -1,8 +1,8 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/user.model');
-const { ApiError } = require('../utils/errors');
+import jwt from 'jsonwebtoken';
+import User from '../models/user.model.js';
+import { ApiError } from '../utils/errors.js';
 
-exports.authenticate = async (req, res, next) => {
+export const authenticate = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -23,7 +23,7 @@ exports.authenticate = async (req, res, next) => {
   }
 };
 
-exports.isAdmin = async (req, res, next) => {
+export const isAdmin = async (req, res, next) => {
   if (req.user.role !== 'admin') {
     throw new ApiError(403, 'Admin access required');
   }

@@ -1,11 +1,11 @@
-const Poll = require("../models/poll.model");
-const Vote = require("../models/vote.model");
-const { generateInviteCode, encryptData } = require("../utils/crypto");
-const { ApiError } = require("../utils/errors");
-const logger = require("../utils/logger");
-const mongoose = require("mongoose");
+import Poll from "../models/poll.model.js";
+import Vote from "../models/vote.model.js";
+import { generateInviteCode, encryptData } from "../utils/crypto.js";
+import { ApiError } from "../utils/errors.js";
+import logger from "../utils/logger.js";
+import mongoose from "mongoose";
 
-exports.createPoll = async (req, res) => {
+export const createPoll = async (req, res) => {
   try {
     const { question, options, type, expiration, isPublic } = req.body;
 
@@ -34,7 +34,7 @@ exports.createPoll = async (req, res) => {
   }
 };
 
-exports.getPoll = async (req, res) => {
+export const getPoll = async (req, res) => {
   try {
     const poll = await Poll.findById(req.params.id);
     if (!poll) {
@@ -52,7 +52,7 @@ exports.getPoll = async (req, res) => {
   }
 };
 
-exports.submitVote = async (req, res) => {
+export const submitVote = async (req, res) => {
   try {
     const { selectedOptions, voterToken } = req.body;
     const pollId = req.params.id;
@@ -78,7 +78,7 @@ exports.submitVote = async (req, res) => {
     await vote.save();
 
     // Emit socket event for real-time updates
-    const results = await this.calculateResults(pollId);
+    const results = await submitVote.calculateResults(pollId);
     req.app.get("io").to(pollId).emit("voteUpdate", results);
 
     res.status(201).json({ message: "Vote recorded successfully" });
@@ -88,7 +88,7 @@ exports.submitVote = async (req, res) => {
   }
 };
 
-exports.getResults = async (req, res) => {
+export const getResults = async (req, res) => {
   try {
     const results = await Vote.aggregate([
       { $match: { pollId: new mongoose.Types.ObjectId(req.params.id) } },
@@ -108,7 +108,7 @@ exports.getResults = async (req, res) => {
   }
 };
 
-exports.getPolls = async (req, res) => {
+export const getPolls = async (req, res) => {
   try {
     // Get all public polls, sorted by creation date (newest first)
     const polls = await Poll.find({ isPublic: true })
@@ -123,7 +123,7 @@ exports.getPolls = async (req, res) => {
   }
 };
 
-exports.getUserPolls = async (req, res) => {
+export const getUserPolls = async (req, res) => {
   try {
     // Get polls created by the authenticated user
     const polls = await Poll.find({ creator: req.user._id })

@@ -1,7 +1,7 @@
-const winston = require('winston');
+import winston from 'winston';
 
 const logger = winston.createLogger({
-  level: 'info',
+  level: process.env.NODE_ENV !== 'production' ? 'debug' : 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.json()
@@ -14,8 +14,14 @@ const logger = winston.createLogger({
 
 if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
-    format: winston.format.simple()
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+      winston.format.printf(({ level, message, timestamp }) => {
+        return `${timestamp} ${level}: ${message}`;
+      })
+    )
   }));
 }
 
-module.exports = logger;
+export default logger;

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const pollSchema = new mongoose.Schema({
   creator: {
@@ -39,4 +39,4 @@ const pollSchema = new mongoose.Schema({
 pollSchema.index({ expiration: 1 });
 pollSchema.index({ isPublic: 1 });
 
-module.exports = mongoose.model('Poll', pollSchema);
+export default mongoose.model('Poll', pollSchema);

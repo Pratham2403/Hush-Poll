@@ -1,25 +1,26 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
-const rateLimit = require('express-rate-limit');
-const dotenv = require('dotenv');
+import express from 'express';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
+import dotenv from 'dotenv';
 
-const authRoutes = require('./routes/auth.routes');
-const pollRoutes = require('./routes/poll.routes');
-const adminRoutes = require('./routes/admin.routes');
-const { errorHandler } = require('./middleware/error.middleware');
-const { setupSocketHandlers } = require('./socket');
-const logger = require('./utils/logger');
+import authRoutes from './routes/auth.routes.js';
+import pollRoutes from './routes/poll.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import { errorHandler } from './middleware/error.middleware.js';
+import { setupSocketHandlers } from './socket.js';
+import logger from './utils/logger.js';
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
+
+const io = new SocketIOServer(server, {
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     methods: ['GET', 'POST']
@@ -61,4 +62,4 @@ server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });
 
-module.exports = { app, server };
+export { app, server };

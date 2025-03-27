@@ -1,13 +1,13 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32);
 const IV_LENGTH = 16;
 
-exports.generateInviteCode = () => {
+export const generateInviteCode = () => {
   return crypto.randomBytes(16).toString('hex');
 };
 
-exports.encryptData = (text) => {
+export const encryptData = (text) => {
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
   let encrypted = cipher.update(text);
@@ -15,7 +15,7 @@ exports.encryptData = (text) => {
   return iv.toString('hex') + ':' + encrypted.toString('hex');
 };
 
-exports.decryptData = (text) => {
+export const decryptData = (text) => {
   const textParts = text.split(':');
   const iv = Buffer.from(textParts.shift(), 'hex');
   const encryptedText = Buffer.from(textParts.join(':'), 'hex');

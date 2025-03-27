@@ -1,9 +1,9 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/user.model');
-const { ApiError } = require('../utils/errors');
-const logger = require('../utils/logger');
+import jwt from 'jsonwebtoken';
+import User from '../models/user.model.js';
+import { ApiError } from '../utils/errors.js';
+import logger from '../utils/logger.js';
 
-exports.register = async (req, res) => {
+export const register = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     
@@ -24,17 +24,20 @@ exports.register = async (req, res) => {
     res.status(201).json({ token });
   } catch (error) {
     logger.error('Registration error:', error);
-    throw new ApiError(400, 'Registration failed');
+    next(new ApiError(400, 'Registration failed'));
   }
 };
 
-exports.login = async (req, res) => {
+export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    console.log(req.body);
     
     const user = await User.findOne({ email });
+    console.log(user);
+    
     if (!user || !(await user.comparePassword(password))) {
-      throw new ApiError(401, 'Invalid credentials');
+      return next(new ApiError(401, 'Invalid credentials'));
     }
 
     const token = jwt.sign(
@@ -42,10 +45,10 @@ exports.login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
-
+    
     res.json({ token });
   } catch (error) {
     logger.error('Login error:', error);
-    throw new ApiError(400, 'Login failed');
+    next(new ApiError(400, 'Login failed'));
   }
 };

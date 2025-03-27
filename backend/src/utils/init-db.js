@@ -1,9 +1,9 @@
-const mongoose = require("mongoose");
-const User = require("../models/user.model");
-const Poll = require("../models/poll.model");
-const bcrypt = require("bcryptjs");
-const logger = require("./logger");
-const dotenv = require("dotenv");
+import mongoose from "mongoose";
+import User from "../models/user.model.js";
+import Poll from "../models/poll.model.js";
+import bcrypt from "bcryptjs";
+import logger from "./logger.js";
+import dotenv from "dotenv";
 
 // Load environment variables
 dotenv.config();
@@ -50,7 +50,7 @@ async function initializeDatabase() {
           question: "What is your favorite programming language?",
           options: ["JavaScript", "Python", "Java", "C++", "Ruby"],
           type: "single",
-          expiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          expiration: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           isPublic: true,
         },
         {
@@ -58,7 +58,7 @@ async function initializeDatabase() {
           question: "Which frontend frameworks do you use?",
           options: ["React", "Vue", "Angular", "Svelte", "Next.js"],
           type: "multiple",
-          expiration: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
+          expiration: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
           isPublic: true,
         },
         {
@@ -70,7 +70,7 @@ async function initializeDatabase() {
             "Afternoon (3-5 PM)",
           ],
           type: "single",
-          expiration: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
+          expiration: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
           isPublic: false,
           inviteCodes: ["secret123"],
         },

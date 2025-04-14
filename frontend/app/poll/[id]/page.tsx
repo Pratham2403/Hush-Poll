@@ -31,12 +31,19 @@ import { useToast } from "@/components/ui/use-toast";
 import { Share2, AlertCircle } from "lucide-react";
 import { pollsAPI } from "@/lib/api";
 import { v4 as uuidv4 } from "uuid";
+import { PollTypes } from "../../../../shared/poll.types.js";
 
 type Poll = {
   _id: string;
-  question: string;
-  options: string[];
-  type: string;
+  title: string;
+  description?: string;
+  questions: {
+    text: string;
+    type: string;
+    options: string[];
+    minValue?: number;
+    maxValue?: number;
+  }[];
   expiration: string;
   isPublic: boolean;
   createdAt: string;
@@ -48,57 +55,85 @@ type Poll = {
 export default function PollDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [poll, setPoll] = useState<Poll | null>(null);
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [responses, setResponses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
-  const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [showShareOptions, setShowShareOptions] = useState(false);
 
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
+    // Wait for authentication to complete before fetching the poll
+    if (authLoading) return;
+
     // Check if user has already voted
     const hasVotedBefore = localStorage.getItem(`voted_${id}`) === "true";
     setHasVoted(hasVotedBefore);
 
-    // Check for invite code in URL
-    const searchParams = new URLSearchParams(window.location.search);
-    const code = searchParams.get("code");
-    if (code) {
-      setInviteCode(code);
-    }
-
     const fetchPoll = async () => {
       try {
-        const data = await pollsAPI.getPoll(
-          id as string,
-          inviteCode || undefined
-        );
+        const data = await pollsAPI.getPoll(id as string);
         setPoll(data);
-      } catch (error) {
-        setError(
-          error instanceof Error ? error.message : "Failed to load poll"
-        );
+
+        // Initialize responses array with empty values for each question
+        if (data.questions) {
+          const initialResponses = data.questions.map((question, index) => ({
+            questionIdx: index,
+            selectedOptions: [],
+          }));
+          setResponses(initialResponses);
+        }
+      } catch (error: any) {
+        let errorMessage = "Failed to load poll";
+
+        if (error.response) {
+          // Handle specific error cases
+          if (error.response.status === 401) {
+            errorMessage =
+              "Authentication required to access this private poll. Please log in to continue.";
+          } else if (error.response.status === 403) {
+            errorMessage = "You don't have permission to view this poll.";
+          } else if (error.response.status === 404) {
+            errorMessage = "Poll not found. It may have been deleted.";
+          } else if (error.response.data && error.response.data.message) {
+            errorMessage = error.response.data.message;
+          }
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+
+        setError(errorMessage);
+
+        // Show toast notification without logging out
+        toast({
+          title: "Error loading poll",
+          description: errorMessage,
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchPoll();
-  }, [id, inviteCode]);
+  }, [id, toast, authLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate answers
-    if (selectedOptions.length === 0) {
+    // Validate that all questions have responses
+    const hasEmptyResponses = responses.some(
+      (response) => response.selectedOptions.length === 0
+    );
+
+    if (hasEmptyResponses) {
       toast({
         title: "Incomplete submission",
-        description: "Please select at least one option before submitting",
+        description: "Please answer all questions before submitting",
         variant: "destructive",
       });
       return;
@@ -116,7 +151,7 @@ export default function PollDetailPage() {
 
       // Submit vote
       await pollsAPI.submitVote(id as string, {
-        selectedOptions,
+        responses,
         voterToken,
       });
 
@@ -128,11 +163,28 @@ export default function PollDetailPage() {
         title: "Vote submitted",
         description: "Thank you for participating in this poll!",
       });
-    } catch (error) {
+    } catch (error: any) {
+      let errorMessage = "Failed to submit your vote";
+
+      if (error.response) {
+        // Handle specific error cases
+        if (error.response.status === 401) {
+          errorMessage =
+            "Authentication required to vote in this poll. Please log in to continue.";
+        } else if (error.response.status === 403) {
+          errorMessage = "You don't have permission to vote in this poll.";
+        } else if (error.response.status === 404) {
+          errorMessage = "Poll not found. It may have been deleted.";
+        } else if (error.response.data && error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
       toast({
         title: "Submission failed",
-        description:
-          error instanceof Error ? error.message : "Failed to submit your vote",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -140,16 +192,35 @@ export default function PollDetailPage() {
     }
   };
 
-  const handleOptionChange = (option: string) => {
-    if (poll?.type === "single") {
-      setSelectedOptions([option]);
-    } else if (poll?.type === "multiple") {
-      if (selectedOptions.includes(option)) {
-        setSelectedOptions(selectedOptions.filter((item) => item !== option));
+  const handleOptionChange = (
+    questionIndex: number,
+    option: string,
+    pollType: string
+  ) => {
+    const updatedResponses = [...responses];
+    const currentResponse = updatedResponses[questionIndex];
+
+    if (
+      pollType === PollTypes.SINGLE ||
+      pollType === PollTypes.DROPDOWN ||
+      pollType === PollTypes.LINEAR
+    ) {
+      currentResponse.selectedOptions = [option];
+    } else if (pollType === PollTypes.MULTIPLE) {
+      if (currentResponse.selectedOptions.includes(option)) {
+        currentResponse.selectedOptions =
+          currentResponse.selectedOptions.filter(
+            (item: string) => item !== option
+          );
       } else {
-        setSelectedOptions([...selectedOptions, option]);
+        currentResponse.selectedOptions = [
+          ...currentResponse.selectedOptions,
+          option,
+        ];
       }
     }
+
+    setResponses(updatedResponses);
   };
 
   const handleViewResults = () => {
@@ -162,7 +233,7 @@ export default function PollDetailPage() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: poll?.question || "Hush Poll",
+          title: poll?.title || "Hush Poll",
           text: "Check out this poll!",
           url,
         });
@@ -232,6 +303,126 @@ export default function PollDetailPage() {
 
   const isPollExpired = new Date() > new Date(poll.expiration);
 
+  // Render a question based on its type
+  const renderQuestion = (question: any, index: number) => {
+    // Get current response for this question
+    const response = responses[index] || { selectedOptions: [] };
+
+    switch (question.type) {
+      case PollTypes.SINGLE:
+        return (
+          <RadioGroup
+            value={response.selectedOptions[0] || ""}
+            onValueChange={(value) =>
+              handleOptionChange(index, value, question.type)
+            }
+            className="space-y-2"
+          >
+            {question.options.map((option: string) => (
+              <div key={option} className="flex items-center space-x-2">
+                <RadioGroupItem value={option} id={`${index}-${option}`} />
+                <Label
+                  htmlFor={`${index}-${option}`}
+                  className="cursor-pointer"
+                >
+                  {option}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        );
+
+      case PollTypes.MULTIPLE:
+        return (
+          <div className="space-y-2">
+            {question.options.map((option: string) => (
+              <div key={option} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`${index}-${option}`}
+                  checked={response.selectedOptions.includes(option)}
+                  onCheckedChange={() =>
+                    handleOptionChange(index, option, question.type)
+                  }
+                />
+                <Label
+                  htmlFor={`${index}-${option}`}
+                  className="cursor-pointer"
+                >
+                  {option}
+                </Label>
+              </div>
+            ))}
+          </div>
+        );
+
+      case PollTypes.DROPDOWN:
+        return (
+          <div className="space-y-2">
+            <Select
+              value={response.selectedOptions[0] || ""}
+              onValueChange={(value) =>
+                handleOptionChange(index, value, question.type)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select an option" />
+              </SelectTrigger>
+              <SelectContent>
+                {question.options.map((option: string) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
+
+      case PollTypes.LINEAR:
+        return (
+          <div className="space-y-6">
+            <div className="pt-6">
+              <Slider
+                value={
+                  response.selectedOptions.length
+                    ? [parseInt(response.selectedOptions[0])]
+                    : [
+                        parseInt(
+                          question.options[0] || question.minValue || "1"
+                        ),
+                      ]
+                }
+                min={question.minValue || 1}
+                max={question.maxValue || 5}
+                step={1}
+                onValueChange={(values) =>
+                  handleOptionChange(index, values[0].toString(), question.type)
+                }
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                {question.options.map((option: string) => (
+                  <span key={option}>{option}</span>
+                ))}
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-medium">
+                Selected:{" "}
+                {response.selectedOptions[0] ||
+                  question.options[0] ||
+                  question.minValue ||
+                  "1"}
+              </p>
+            </div>
+          </div>
+        );
+
+      default:
+        return <p>Unsupported question type</p>;
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto">
       <Card className="bg-gradient-to-br from-background to-secondary/10">
@@ -239,12 +430,15 @@ export default function PollDetailPage() {
           <div className="flex justify-between items-start gap-4">
             <div>
               <CardTitle className="text-3xl font-bold text-primary">
-                {poll.question}
+                {poll.title}
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-2">
                 Created {new Date(poll.createdAt).toLocaleDateString()}
                 {poll.creator?.name && ` by ${poll.creator.name}`}
               </p>
+              {poll.description && (
+                <p className="mt-4 text-muted-foreground">{poll.description}</p>
+              )}
             </div>
             <Button variant="outline" size="icon" onClick={handleShare}>
               <Share2 className="h-4 w-4" />
@@ -301,43 +495,17 @@ export default function PollDetailPage() {
             </Alert>
           ) : (
             <form onSubmit={handleSubmit}>
-              <h3 className="text-lg font-semibold mb-4">
-                Select your answer:
-              </h3>
-
-              {poll.type === "single" && (
-                <RadioGroup
-                  value={selectedOptions[0] || ""}
-                  onValueChange={(value) => setSelectedOptions([value])}
-                  className="space-y-2"
-                >
-                  {poll.options.map((option) => (
-                    <div key={option} className="flex items-center space-x-2">
-                      <RadioGroupItem value={option} id={option} />
-                      <Label htmlFor={option} className="cursor-pointer">
-                        {option}
-                      </Label>
+              <div className="space-y-8">
+                {poll.questions &&
+                  poll.questions.map((question, index) => (
+                    <div key={index} className="border-b pb-6 last:border-0">
+                      <h3 className="text-lg font-semibold mb-4">
+                        {index + 1}. {question.text}
+                      </h3>
+                      {renderQuestion(question, index)}
                     </div>
                   ))}
-                </RadioGroup>
-              )}
-
-              {poll.type === "multiple" && (
-                <div className="space-y-2">
-                  {poll.options.map((option) => (
-                    <div key={option} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={option}
-                        checked={selectedOptions.includes(option)}
-                        onCheckedChange={() => handleOptionChange(option)}
-                      />
-                      <Label htmlFor={option} className="cursor-pointer">
-                        {option}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              )}
+              </div>
 
               <Button
                 type="submit"

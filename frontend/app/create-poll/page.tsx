@@ -35,13 +35,15 @@ import { X, HelpCircle, Copy, Check } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/ui/use-toast";
 import { pollsAPI } from "@/lib/api";
+import { PollTypes } from "../../../shared/poll.types.js";
 
 export default function CreatePollPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [restriction, setRestriction] = useState("");
-  const [duration, setDuration] = useState("24");
+  const [restrictionType, setRestrictionType] = useState("email-list"); // "email-list" or "regex"
+  const [duration, setDuration] = useState("60"); // Default to 60 minutes (1 hour)
   const [questionType, setQuestionType] = useState("");
   const [questions, setQuestions] = useState<any[]>([]);
   const [image, setImage] = useState<File | null>(null);
@@ -49,6 +51,7 @@ export default function CreatePollPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pollCreated, setPollCreated] = useState(false);
   const [pollLink, setPollLink] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -108,6 +111,42 @@ export default function CreatePollPage() {
       }
     });
 
+    // Enhanced validation for private poll restrictions
+    if (isPrivate) {
+      if (!restriction.trim()) {
+        newErrors.restriction =
+          "Access restriction is required for private polls";
+      } else if (restrictionType === "email-list") {
+        // Validate email format for comma-separated list
+        const emails = restriction.split(",").map((email) => email.trim());
+        const invalidEmails = emails.filter((email) => {
+          return !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        });
+
+        if (invalidEmails.length > 0) {
+          newErrors.restriction = `Invalid email format: ${invalidEmails.join(
+            ", "
+          )}`;
+        }
+      } else if (restrictionType === "regex") {
+        try {
+          // Test if it's a valid regex
+          new RegExp(restriction);
+
+          // Optionally, test if it could be a valid email regex
+          const testEmail = "test@example.com";
+          try {
+            new RegExp(restriction).test(testEmail);
+          } catch (e) {
+            newErrors.restriction =
+              "Regex pattern might not work properly for email matching";
+          }
+        } catch (error) {
+          newErrors.restriction = "Invalid regex pattern";
+        }
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -127,34 +166,45 @@ export default function CreatePollPage() {
     setIsSubmitting(true);
 
     try {
-      // Calculate expiration date based on duration
+      // Calculate expiration date based on duration in minutes
       const expirationDate = new Date();
-      expirationDate.setHours(expirationDate.getHours() + parseInt(duration));
+      expirationDate.setMinutes(
+        expirationDate.getMinutes() + parseInt(duration)
+      );
+
+      // Format questions with proper structure for the API
+      const formattedQuestions = questions.map((question) => ({
+        text: question.text,
+        type: question.type,
+        options: question.options,
+        minValue: question.type === PollTypes.LINEAR ? question.min : undefined,
+        maxValue: question.type === PollTypes.LINEAR ? question.max : undefined,
+      }));
 
       // Prepare data for API
       const pollData = {
-        question: title,
-        options: questions[0].options, // For now, we're supporting one question with multiple options
-        type: "single", // Default to single choice
+        title,
+        description,
+        questions: formattedQuestions,
         expiration: expirationDate.toISOString(),
         isPublic: !isPrivate,
+        invitationRestriction: isPrivate ? restriction : undefined,
       };
-
-      // If the poll is private, add invitation code logic
-      if (isPrivate && restriction) {
-        pollData.invitationRestriction = restriction;
-      }
 
       // Call the API to create the poll
       const response = await pollsAPI.createPoll(pollData);
-
-      setPollCreated(true);
-      setPollLink(`${window.location.origin}/poll/${response._id}`);
 
       toast({
         title: "Poll created successfully",
         description: "Your poll is now available for voting",
       });
+
+      // Set poll created state for success page
+      setPollCreated(true);
+      setPollLink(`${window.location.origin}/poll/${response._id}`);
+
+      // Redirect to my-polls page after successful creation
+      router.push("/my-polls");
     } catch (error) {
       toast({
         title: "Failed to create poll",
@@ -199,8 +249,6 @@ export default function CreatePollPage() {
       options: questionType !== "linear" ? ["", ""] : undefined,
       min: questionType === "linear" ? 1 : undefined,
       max: questionType === "linear" ? 5 : undefined,
-      minLabel: questionType === "linear" ? "" : undefined,
-      maxLabel: questionType === "linear" ? "" : undefined,
     };
 
     setQuestions([...questions, newQuestion]);
@@ -230,15 +278,14 @@ export default function CreatePollPage() {
   };
 
   const removeQuestion = (index: number) => {
-    const updatedQuestions = questions.filter((_, i) => i !== index);
+    const updatedQuestions = [...questions];
+    updatedQuestions.splice(index, 1);
     setQuestions(updatedQuestions);
   };
 
   const removeOption = (questionIndex: number, optionIndex: number) => {
     const updatedQuestions = [...questions];
-    updatedQuestions[questionIndex].options = updatedQuestions[
-      questionIndex
-    ].options.filter((_, i) => i !== optionIndex);
+    updatedQuestions[questionIndex].options.splice(optionIndex, 1);
     setQuestions(updatedQuestions);
   };
 
@@ -246,14 +293,14 @@ export default function CreatePollPage() {
     try {
       await navigator.clipboard.writeText(pollLink);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
       toast({
-        title: "Link copied",
+        title: "Copied!",
         description: "Poll link copied to clipboard",
       });
-    } catch (err) {
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
       toast({
-        title: "Failed to copy",
+        title: "Error copying link",
         description: "Please copy the link manually",
         variant: "destructive",
       });
@@ -261,46 +308,84 @@ export default function CreatePollPage() {
   };
 
   const createNewPoll = () => {
-    setPollCreated(false);
+    // Reset form
     setTitle("");
     setDescription("");
     setIsPrivate(false);
     setRestriction("");
+    setRestrictionType("email-list");
     setDuration("24");
     setQuestions([]);
+    setQuestionType("");
     setImage(null);
     setImagePreview(null);
     setErrors({});
+    setPollCreated(false);
+    setPollLink("");
+    setInviteCode("");
+    setCopied(false);
+  };
+
+  const formatDuration = (minutes: number) => {
+    if (minutes < 60) {
+      return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+    } else {
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+
+      if (remainingMinutes === 0) {
+        return `${hours} hour${hours !== 1 ? "s" : ""}`;
+      } else {
+        return `${hours} hour${
+          hours !== 1 ? "s" : ""
+        } ${remainingMinutes} minute${remainingMinutes !== 1 ? "s" : ""}`;
+      }
+    }
   };
 
   if (pollCreated) {
     return (
-      <div className="max-w-3xl mx-auto">
-        <Card className="bg-gradient-to-br from-background to-secondary/10">
+      <div className="max-w-md mx-auto mt-10 px-4">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-3xl font-bold text-primary">
-              Poll Created Successfully!
-            </CardTitle>
-            <CardDescription>
-              Share your poll with others using the link below
-            </CardDescription>
+            <CardTitle>Poll Created Successfully</CardTitle>
+            <CardDescription>Share this link with others</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center space-x-2">
-              <Input value={pollLink} readOnly className="flex-1" />
-              <Button variant="outline" size="icon" onClick={copyToClipboard}>
-                {copied ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={createNewPoll}>
-                Create Another Poll
-              </Button>
-              <Button onClick={() => router.push(pollLink)}>View Poll</Button>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Input value={pollLink} readOnly />
+                <Button variant="outline" size="icon" onClick={copyToClipboard}>
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                </Button>
+              </div>
+
+              {isPrivate && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium mb-2">
+                    Private Poll Information:
+                  </p>
+                  <div className="p-2 bg-muted rounded-md">
+                    <p className="text-sm">
+                      Only users with email addresses that match your specified
+                      criteria can access this poll.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 mt-4">
+                <Button
+                  onClick={() =>
+                    router.push(`/poll/${pollLink.split("/").pop()}`)
+                  }
+                >
+                  View Poll
+                </Button>
+                <Button variant="outline" onClick={createNewPoll}>
+                  Create New Poll
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -309,360 +394,380 @@ export default function CreatePollPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <Card className="bg-gradient-to-br from-background to-secondary/10">
+    <div className="container mx-auto px-4 py-8">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-3xl font-bold text-primary">
+          <CardTitle className="text-2xl font-bold">
             Create a New Poll
           </CardTitle>
           <CardDescription>
-            Fill out the form below to create your anonymous poll
+            Fill in the form below to create your poll
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label
-                htmlFor="title"
-                className="text-lg font-medium text-foreground"
-              >
-                Title
-              </Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter poll title"
-                className="text-lg"
-                aria-invalid={!!errors.title}
-                aria-describedby={errors.title ? "title-error" : undefined}
-              />
-              {errors.title && (
-                <p id="title-error" className="text-sm text-destructive mt-1">
-                  {errors.title}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label
-                htmlFor="description"
-                className="text-lg font-medium text-foreground"
-              >
-                Description
-              </Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe your poll"
-                className="text-lg"
-                rows={4}
-                aria-invalid={!!errors.description}
-                aria-describedby={
-                  errors.description ? "description-error" : undefined
-                }
-              />
-              {errors.description && (
-                <p
-                  id="description-error"
-                  className="text-sm text-destructive mt-1"
-                >
-                  {errors.description}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label
-                htmlFor="image"
-                className="text-lg font-medium text-foreground"
-              >
-                Poll Image (Optional)
-              </Label>
-              <Input
-                id="image"
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="text-lg"
-              />
-              <p className="text-sm text-muted-foreground">
-                Maximum file size: 5MB. Recommended dimensions: 1200x630px.
-              </p>
-              {imagePreview && (
-                <img
-                  src={imagePreview || "/placeholder.svg"}
-                  alt="Poll preview"
-                  className="mt-2 max-w-full h-auto rounded-md"
-                />
-              )}
-            </div>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label
-                  htmlFor="questionType"
-                  className="text-lg font-medium text-foreground"
-                >
-                  Question Type
-                </Label>
-                <Select onValueChange={setQuestionType} value={questionType}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="single">Single Choice</SelectItem>
-                    <SelectItem value="multiple">Multiple Choice</SelectItem>
-                    <SelectItem value="dropdown">Dropdown</SelectItem>
-                    <SelectItem value="linear">Linear Scale</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div>
+                <Label htmlFor="title">Poll Title</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={isSubmitting}
+                  className={errors.title ? "border-destructive" : ""}
+                />
+                {errors.title && (
+                  <p className="text-destructive text-sm mt-1">
+                    {errors.title}
+                  </p>
+                )}
               </div>
-              <Button
-                type="button"
-                onClick={addQuestion}
-                disabled={!questionType}
-                className="w-full"
-              >
-                Add Question
-              </Button>
-              {errors.questions && (
-                <p className="text-sm text-destructive mt-1">
-                  {errors.questions}
-                </p>
-              )}
-            </div>
-            {questions.map((question, index) => (
-              <Card key={index} className="mt-4 bg-background relative">
-                <CardContent className="pt-8 pb-4">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
-                    onClick={() => removeQuestion(index)}
-                    aria-label="Remove question"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                  <Input
-                    value={question.text}
-                    onChange={(e) =>
-                      updateQuestion(index, "text", e.target.value)
-                    }
-                    placeholder="Enter question text"
-                    className="mb-4 text-lg"
-                    aria-invalid={!!errors[`question_${index}`]}
-                    aria-describedby={
-                      errors[`question_${index}`]
-                        ? `question-${index}-error`
-                        : undefined
-                    }
-                  />
-                  {errors[`question_${index}`] && (
-                    <p
-                      id={`question-${index}-error`}
-                      className="text-sm text-destructive mb-2"
+
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={isSubmitting}
+                  className={errors.description ? "border-destructive" : ""}
+                />
+                {errors.description && (
+                  <p className="text-destructive text-sm mt-1">
+                    {errors.description}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="isPrivate"
+                  checked={isPrivate}
+                  onCheckedChange={setIsPrivate}
+                  disabled={isSubmitting}
+                />
+                <Label htmlFor="isPrivate">Private Poll</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        Private polls are only accessible to people you invite
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+
+              {isPrivate && (
+                <div className="space-y-2">
+                  <div>
+                    <Label>Access Restriction Type</Label>
+                    <Select
+                      value={restrictionType}
+                      onValueChange={setRestrictionType}
+                      disabled={isSubmitting}
                     >
-                      {errors[`question_${index}`]}
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select restriction type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="email-list">
+                          Email List (comma-separated)
+                        </SelectItem>
+                        <SelectItem value="regex">
+                          Email Pattern (regex)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="restriction">
+                      {restrictionType === "email-list"
+                        ? "Allowed Emails (comma-separated)"
+                        : "Email Pattern (regex)"}
+                    </Label>
+                    <Textarea
+                      id="restriction"
+                      placeholder={
+                        restrictionType === "email-list"
+                          ? "e.g., user1@example.com, user2@example.com"
+                          : "e.g., ^[a-zA-Z0-9._%+-]+@example\\.com$"
+                      }
+                      value={restriction}
+                      onChange={(e) => setRestriction(e.target.value)}
+                      disabled={isSubmitting}
+                      className={errors.restriction ? "border-destructive" : ""}
+                    />
+                    {errors.restriction && (
+                      <p className="text-destructive text-sm mt-1">
+                        {errors.restriction}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {restrictionType === "email-list"
+                        ? "Only users with these emails will be able to access the poll"
+                        : "Only users with emails matching this pattern will be able to access the poll"}
                     </p>
-                  )}
-                  {["single", "multiple", "dropdown"].includes(
-                    question.type
-                  ) && (
-                    <>
-                      {question.options?.map(
-                        (option: string, optionIndex: number) => (
-                          <div
-                            key={optionIndex}
-                            className="flex items-center mt-2"
-                          >
-                            <Input
-                              value={option}
-                              onChange={(e) =>
-                                updateOption(index, optionIndex, e.target.value)
-                              }
-                              placeholder={`Option ${optionIndex + 1}`}
-                              className="flex-grow text-lg"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeOption(index, optionIndex)}
-                              className="ml-2 text-muted-foreground hover:text-destructive"
-                              aria-label={`Remove option ${optionIndex + 1}`}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )
-                      )}
-                      {errors[`question_${index}_options`] && (
-                        <p className="text-sm text-destructive mt-2">
-                          {errors[`question_${index}_options`]}
-                        </p>
-                      )}
-                      <Button
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="duration">
+                  Duration: {formatDuration(parseInt(duration))}
+                </Label>
+                <div className="flex items-center space-x-2 mt-2">
+                  <Input
+                    id="duration"
+                    type="number"
+                    min="1"
+                    max="1440"
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    disabled={isSubmitting}
+                    className={`w-20 ${
+                      errors.duration ? "border-destructive" : ""
+                    }`}
+                  />
+                  <div className="flex-1">
+                    <Slider
+                      value={[parseInt(duration)]}
+                      min={1}
+                      max={1440}
+                      step={1}
+                      onValueChange={(value) =>
+                        setDuration(value[0].toString())
+                      }
+                      disabled={isSubmitting}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                      <span>1m</span>
+                      <span>1h</span>
+                      <span>6h</span>
+                      <span>12h</span>
+                      <span>24h</span>
+                    </div>
+                  </div>
+                </div>
+                {errors.duration && (
+                  <p className="text-destructive text-sm mt-1">
+                    {errors.duration}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label>Questions</Label>
+                {questions.length === 0 && (
+                  <p className="text-muted-foreground text-sm">
+                    No questions added yet
+                  </p>
+                )}
+                {errors.questions && (
+                  <p className="text-destructive text-sm mt-1">
+                    {errors.questions}
+                  </p>
+                )}
+
+                <div className="space-y-4 mt-2">
+                  {questions.map((question, qIndex) => (
+                    <div
+                      key={qIndex}
+                      className="border p-4 rounded-md relative"
+                    >
+                      <button
                         type="button"
-                        onClick={() => addOption(index)}
-                        className="mt-2"
+                        className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeQuestion(qIndex)}
+                        disabled={isSubmitting}
                       >
-                        Add Option
-                      </Button>
-                    </>
-                  )}
-                  {question.type === "linear" && (
-                    <div className="mt-4 space-y-4">
-                      <div className="flex justify-between gap-4">
-                        <div className="w-full">
-                          <Label
-                            htmlFor={`minLabel-${index}`}
-                            className="text-sm font-medium text-muted-foreground"
-                          >
-                            Minimum Label
+                        <X className="h-5 w-5" />
+                      </button>
+
+                      <div className="space-y-2">
+                        <div>
+                          <Label htmlFor={`question-${qIndex}`}>
+                            Question Text
                           </Label>
                           <Input
-                            id={`minLabel-${index}`}
-                            value={question.minLabel || ""}
+                            id={`question-${qIndex}`}
+                            value={question.text}
                             onChange={(e) =>
-                              updateQuestion(index, "minLabel", e.target.value)
+                              updateQuestion(qIndex, "text", e.target.value)
                             }
-                            placeholder="e.g., Not satisfied"
-                            className="mt-1"
-                          />
-                        </div>
-                        <div className="w-full">
-                          <Label
-                            htmlFor={`maxLabel-${index}`}
-                            className="text-sm font-medium text-muted-foreground"
-                          >
-                            Maximum Label
-                          </Label>
-                          <Input
-                            id={`maxLabel-${index}`}
-                            value={question.maxLabel || ""}
-                            onChange={(e) =>
-                              updateQuestion(index, "maxLabel", e.target.value)
+                            disabled={isSubmitting}
+                            className={
+                              errors[`question_${qIndex}`]
+                                ? "border-destructive"
+                                : ""
                             }
-                            placeholder="e.g., Very satisfied"
-                            className="mt-1"
                           />
+                          {errors[`question_${qIndex}`] && (
+                            <p className="text-destructive text-sm mt-1">
+                              {errors[`question_${qIndex}`]}
+                            </p>
+                          )}
                         </div>
-                      </div>
-                      <div className="flex items-center space-x-4">
-                        <Input
-                          type="number"
-                          value={question.min || 1}
-                          onChange={(e) =>
-                            updateQuestion(index, "min", e.target.value)
-                          }
-                          placeholder="Min"
-                          className="w-20"
-                        />
-                        <Slider
-                          min={Number(question.min) || 1}
-                          max={Number(question.max) || 5}
-                          step={1}
-                          className="flex-grow"
-                        />
-                        <Input
-                          type="number"
-                          value={question.max || 5}
-                          onChange={(e) =>
-                            updateQuestion(index, "max", e.target.value)
-                          }
-                          placeholder="Max"
-                          className="w-20"
-                        />
+
+                        {question.type !== "linear" && (
+                          <div>
+                            <Label>Options</Label>
+                            {errors[`question_${qIndex}_options`] && (
+                              <p className="text-destructive text-sm">
+                                {errors[`question_${qIndex}_options`]}
+                              </p>
+                            )}
+                            <div className="space-y-2 mt-1">
+                              {question.options.map(
+                                (option: string, oIndex: number) => (
+                                  <div
+                                    key={oIndex}
+                                    className="flex items-center space-x-2"
+                                  >
+                                    <Input
+                                      value={option}
+                                      onChange={(e) =>
+                                        updateOption(
+                                          qIndex,
+                                          oIndex,
+                                          e.target.value
+                                        )
+                                      }
+                                      placeholder={`Option ${oIndex + 1}`}
+                                      disabled={isSubmitting}
+                                    />
+                                    {question.options.length > 2 && (
+                                      <button
+                                        type="button"
+                                        className="text-muted-foreground hover:text-destructive"
+                                        onClick={() =>
+                                          removeOption(qIndex, oIndex)
+                                        }
+                                        disabled={isSubmitting}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                )
+                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => addOption(qIndex)}
+                                disabled={isSubmitting}
+                              >
+                                Add Option
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {question.type === "linear" && (
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-4">
+                              <div>
+                                <Label htmlFor={`min-${qIndex}`}>
+                                  Min Value
+                                </Label>
+                                <Input
+                                  id={`min-${qIndex}`}
+                                  type="number"
+                                  value={question.min}
+                                  onChange={(e) =>
+                                    updateQuestion(
+                                      qIndex,
+                                      "min",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-20"
+                                  disabled={isSubmitting}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`max-${qIndex}`}>
+                                  Max Value
+                                </Label>
+                                <Input
+                                  id={`max-${qIndex}`}
+                                  type="number"
+                                  value={question.max}
+                                  onChange={(e) =>
+                                    updateQuestion(
+                                      qIndex,
+                                      "max",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-20"
+                                  disabled={isSubmitting}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="private"
-                checked={isPrivate}
-                onCheckedChange={setIsPrivate}
-              />
-              <Label
-                htmlFor="private"
-                className="text-lg font-medium text-foreground"
-              >
-                Private Poll
-              </Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="ml-2">
-                      <HelpCircle className="h-4 w-4" />
+                  ))}
+                </div>
+
+                <div className="mt-4">
+                  <Label htmlFor="questionType">Add Question</Label>
+                  <div className="flex space-x-2 mt-1">
+                    <Select
+                      value={questionType}
+                      onValueChange={setQuestionType}
+                      disabled={isSubmitting}
+                    >
+                      <SelectTrigger id="questionType">
+                        <SelectValue placeholder="Select question type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={PollTypes.SINGLE}>
+                          Single Choice
+                        </SelectItem>
+                        <SelectItem value={PollTypes.MULTIPLE}>
+                          Multiple Choice
+                        </SelectItem>
+                        <SelectItem value={PollTypes.LINEAR}>
+                          Linear Scale
+                        </SelectItem>
+                        <SelectItem value={PollTypes.DROPDOWN}>
+                          Dropdown
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      onClick={addQuestion}
+                      disabled={!questionType || isSubmitting}
+                    >
+                      Add
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>
-                      Private polls require a specific email pattern to access.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            {isPrivate && (
-              <div className="space-y-2">
-                <Label
-                  htmlFor="restriction"
-                  className="text-lg font-medium text-foreground"
-                >
-                  Restriction Regex
-                </Label>
-                <Input
-                  id="restriction"
-                  value={restriction}
-                  onChange={(e) => setRestriction(e.target.value)}
-                  placeholder="e.g. ^[a-zA-Z0-9._%+-]+@company\.com$"
-                  className="text-lg"
-                />
-                <p className="text-sm text-muted-foreground">
-                  Enter a regex pattern to restrict access to this poll. For
-                  example, use the pattern above to restrict to company email
-                  addresses.
-                </p>
+                  </div>
+                </div>
               </div>
-            )}
-            <div className="space-y-2">
-              <Label
-                htmlFor="duration"
-                className="text-lg font-medium text-foreground"
-              >
-                Duration (in hours)
-              </Label>
-              <Input
-                id="duration"
-                type="number"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                required
-                placeholder="Enter poll duration"
-                className="text-lg"
-                aria-invalid={!!errors.duration}
-                aria-describedby={
-                  errors.duration ? "duration-error" : undefined
-                }
-              />
-              {errors.duration && (
-                <p
-                  id="duration-error"
-                  className="text-sm text-destructive mt-1"
-                >
-                  {errors.duration}
-                </p>
-              )}
             </div>
-            <CardFooter className="flex justify-end px-0">
+
+            <CardFooter className="px-0 flex justify-between">
               <Button
-                type="submit"
-                className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8"
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/")}
                 disabled={isSubmitting}
               >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? "Creating..." : "Create Poll"}
               </Button>
             </CardFooter>

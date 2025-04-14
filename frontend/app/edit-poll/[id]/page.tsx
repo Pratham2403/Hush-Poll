@@ -1,255 +1,488 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
-import { X } from "lucide-react"
-import { useAuth } from "@/lib/auth-context"
-import { useToast } from "@/components/ui/use-toast"
-
-type Question = {
-  type: string
-  text: string
-  options?: string[]
-  min?: number
-  max?: number
-  minLabel?: string
-  maxLabel?: string
-}
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+  CardDescription,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { X, AlertCircle, Plus } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/components/ui/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { pollsAPI } from "@/lib/api";
+import { PollTypes } from "../../../../shared/poll.types.js";
 
 type Poll = {
-  id: string
-  title: string
-  description: string
-  questions: Question[]
-}
+  _id: string;
+  title: string;
+  description?: string;
+  questions: {
+    text: string;
+    type: string;
+    options: string[];
+    minValue?: number;
+    maxValue?: number;
+  }[];
+  expiration: string;
+  isPublic: boolean;
+};
 
-export default function EditPollPage({ params }: { params: { id: string } }) {
-  const [poll, setPoll] = useState<Poll | null>(null)
-  const router = useRouter()
-  const { isAdmin } = useAuth()
-  const { toast } = useToast()
+export default function EditPollPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+
+  const [poll, setPoll] = useState<Poll | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
+  const { isAdmin, isLoggedIn } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (!isAdmin) {
-      router.push("/")
-    } else {
-      // TODO: Fetch actual poll data from the backend
-      setPoll({
-        id: params.id,
-        title: "Sample Poll",
-        description: "This is a sample poll description",
-        questions: [
-          {
-            type: "single",
-            text: "What's your favorite color?",
-            options: ["Red", "Blue", "Green"],
-          },
-        ],
-      })
+    if (!isLoggedIn) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to edit polls",
+        variant: "destructive",
+      });
+      router.push("/login");
+      return;
     }
-  }, [isAdmin, router, params.id])
+
+    const fetchPoll = async () => {
+      try {
+        const data = await pollsAPI.getPoll(id);
+        setPoll({
+          ...data,
+          // Add a default description if not present
+          description: data.description || "",
+        });
+      } catch (error) {
+        setError(
+          error instanceof Error ? error.message : "Failed to load poll"
+        );
+        toast({
+          title: "Error",
+          description: "Failed to load poll data",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPoll();
+  }, [isLoggedIn, isAdmin, router, id, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    // TODO: Implement actual poll update logic here
-    console.log("Updating poll:", poll)
-    toast({
-      title: "Poll updated",
-      description: "The poll has been successfully updated and reset.",
-    })
-    router.push("/manage-polls")
-  }
+    e.preventDefault();
 
-  const updateQuestion = (index: number, field: string, value: string | string[]) => {
-    if (poll) {
-      const updatedQuestions = [...poll.questions]
-      updatedQuestions[index] = { ...updatedQuestions[index], [field]: value }
-      setPoll({ ...poll, questions: updatedQuestions })
+    if (!poll) return;
+
+    setIsSubmitting(true);
+
+    try {
+      // Prepare updated poll data
+      const updatedPollData = {
+        title: poll.title,
+        description: poll.description,
+        questions: poll.questions,
+        isPublic: poll.isPublic,
+      };
+
+      // Call API to update poll
+      await pollsAPI.updatePoll(id, updatedPollData);
+
+      toast({
+        title: "Poll updated",
+        description: "The poll has been successfully updated",
+      });
+
+      router.push("/manage-polls");
+    } catch (error) {
+      toast({
+        title: "Update failed",
+        description:
+          error instanceof Error ? error.message : "Failed to update poll",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-  }
+  };
+
+  const updateQuestion = (questionIndex: number, field: string, value: any) => {
+    if (poll) {
+      const updatedQuestions = [...poll.questions];
+      updatedQuestions[questionIndex] = {
+        ...updatedQuestions[questionIndex],
+        [field]: value,
+      };
+      setPoll({ ...poll, questions: updatedQuestions });
+    }
+  };
+
+  const updateOption = (
+    questionIndex: number,
+    optionIndex: number,
+    value: string
+  ) => {
+    if (poll) {
+      const updatedQuestions = [...poll.questions];
+      const updatedOptions = [...updatedQuestions[questionIndex].options];
+      updatedOptions[optionIndex] = value;
+      updatedQuestions[questionIndex] = {
+        ...updatedQuestions[questionIndex],
+        options: updatedOptions,
+      };
+      setPoll({ ...poll, questions: updatedQuestions });
+    }
+  };
 
   const addOption = (questionIndex: number) => {
     if (poll) {
-      const updatedQuestions = [...poll.questions]
-      updatedQuestions[questionIndex].options = [...(updatedQuestions[questionIndex].options || []), ""]
-      setPoll({ ...poll, questions: updatedQuestions })
+      const updatedQuestions = [...poll.questions];
+      updatedQuestions[questionIndex] = {
+        ...updatedQuestions[questionIndex],
+        options: [...updatedQuestions[questionIndex].options, ""],
+      };
+      setPoll({ ...poll, questions: updatedQuestions });
     }
-  }
-
-  const updateOption = (questionIndex: number, optionIndex: number, value: string) => {
-    if (poll) {
-      const updatedQuestions = [...poll.questions]
-      updatedQuestions[questionIndex].options = updatedQuestions[questionIndex].options?.map((option, index) =>
-        index === optionIndex ? value : option,
-      )
-      setPoll({ ...poll, questions: updatedQuestions })
-    }
-  }
+  };
 
   const removeOption = (questionIndex: number, optionIndex: number) => {
-    if (poll) {
-      const updatedQuestions = [...poll.questions]
-      updatedQuestions[questionIndex].options = updatedQuestions[questionIndex].options?.filter(
-        (_, index) => index !== optionIndex,
-      )
-      setPoll({ ...poll, questions: updatedQuestions })
+    if (poll && poll.questions[questionIndex].options.length > 2) {
+      const updatedQuestions = [...poll.questions];
+      const updatedOptions = updatedQuestions[questionIndex].options.filter(
+        (_, index) => index !== optionIndex
+      );
+      updatedQuestions[questionIndex] = {
+        ...updatedQuestions[questionIndex],
+        options: updatedOptions,
+      };
+      setPoll({ ...poll, questions: updatedQuestions });
+    } else {
+      toast({
+        title: "Cannot remove option",
+        description: "A question must have at least two options",
+        variant: "destructive",
+      });
     }
+  };
+
+  const addQuestion = () => {
+    if (poll) {
+      setPoll({
+        ...poll,
+        questions: [
+          ...poll.questions,
+          {
+            text: "",
+            type: PollTypes.SINGLE,
+            options: ["", ""],
+          },
+        ],
+      });
+    }
+  };
+
+  const removeQuestion = (questionIndex: number) => {
+    if (poll && poll.questions.length > 1) {
+      const updatedQuestions = poll.questions.filter(
+        (_, index) => index !== questionIndex
+      );
+      setPoll({ ...poll, questions: updatedQuestions });
+    } else {
+      toast({
+        title: "Cannot remove question",
+        description: "A poll must have at least one question",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto py-8">
+        <div className="flex justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-3xl mx-auto py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   if (!poll) {
-    return <div>Loading...</div>
+    return <div className="max-w-3xl mx-auto py-8">Poll not found</div>;
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <Card className="bg-gradient-to-br from-background to-secondary/10">
+    <div className="max-w-3xl mx-auto py-8">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-3xl font-bold text-primary">Edit Poll</CardTitle>
+          <CardTitle className="text-3xl font-bold">Edit Poll</CardTitle>
+          <CardDescription>
+            Make changes to your poll and save when done
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="title" className="text-lg font-medium text-foreground">
-                Title
-              </Label>
+              <Label htmlFor="title">Poll Title</Label>
               <Input
                 id="title"
                 value={poll.title}
                 onChange={(e) => setPoll({ ...poll, title: e.target.value })}
                 required
-                className="text-lg"
+                disabled={isSubmitting}
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="description" className="text-lg font-medium text-foreground">
-                Description
-              </Label>
+              <Label htmlFor="description">Description (Optional)</Label>
               <Textarea
                 id="description"
                 value={poll.description}
-                onChange={(e) => setPoll({ ...poll, description: e.target.value })}
-                required
-                className="text-lg"
+                onChange={(e) =>
+                  setPoll({ ...poll, description: e.target.value })
+                }
+                disabled={isSubmitting}
                 rows={4}
               />
             </div>
-            {poll.questions.map((question, index) => (
-              <Card key={index} className="mt-4 bg-background relative">
-                <CardContent className="pt-8 pb-4">
-                  <Input
-                    value={question.text}
-                    onChange={(e) => updateQuestion(index, "text", e.target.value)}
-                    placeholder="Enter question text"
-                    className="mb-4 text-lg"
-                  />
-                  <Select value={question.type} onValueChange={(value) => updateQuestion(index, "type", value)}>
-                    <SelectTrigger className="w-[200px] mb-4">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="single">Single Choice</SelectItem>
-                      <SelectItem value="multiple">Multiple Choice</SelectItem>
-                      <SelectItem value="dropdown">Dropdown</SelectItem>
-                      <SelectItem value="linear">Linear Scale</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {["single", "multiple", "dropdown"].includes(question.type) && (
-                    <>
-                      {question.options?.map((option, optionIndex) => (
-                        <div key={optionIndex} className="flex items-center mt-2">
-                          <Input
-                            value={option}
-                            onChange={(e) => updateOption(index, optionIndex, e.target.value)}
-                            placeholder={`Option ${optionIndex + 1}`}
-                            className="flex-grow text-lg"
-                          />
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <Label>Questions</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addQuestion}
+                  disabled={isSubmitting}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add Question
+                </Button>
+              </div>
+
+              {poll.questions.map((question, qIndex) => (
+                <Card key={qIndex} className="p-4 border">
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-lg font-medium">
+                      Question {qIndex + 1}
+                    </h3>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeQuestion(qIndex)}
+                      disabled={isSubmitting || poll.questions.length <= 1}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor={`question-${qIndex}`}>
+                        Question Text
+                      </Label>
+                      <Input
+                        id={`question-${qIndex}`}
+                        value={question.text}
+                        onChange={(e) =>
+                          updateQuestion(qIndex, "text", e.target.value)
+                        }
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor={`type-${qIndex}`}>Question Type</Label>
+                      <Select
+                        value={question.type}
+                        onValueChange={(value) =>
+                          updateQuestion(qIndex, "type", value)
+                        }
+                        disabled={isSubmitting}
+                      >
+                        <SelectTrigger id={`type-${qIndex}`}>
+                          <SelectValue placeholder="Select question type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={PollTypes.SINGLE}>
+                            Single Choice
+                          </SelectItem>
+                          <SelectItem value={PollTypes.MULTIPLE}>
+                            Multiple Choice
+                          </SelectItem>
+                          <SelectItem value={PollTypes.LINEAR}>
+                            Linear Scale
+                          </SelectItem>
+                          <SelectItem value={PollTypes.DROPDOWN}>
+                            Dropdown
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {question.type === PollTypes.LINEAR ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-1/2">
+                            <Label htmlFor={`min-${qIndex}`}>Min Value</Label>
+                            <Input
+                              id={`min-${qIndex}`}
+                              type="number"
+                              value={question.minValue || 1}
+                              onChange={(e) =>
+                                updateQuestion(
+                                  qIndex,
+                                  "minValue",
+                                  parseInt(e.target.value)
+                                )
+                              }
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                          <div className="w-1/2">
+                            <Label htmlFor={`max-${qIndex}`}>Max Value</Label>
+                            <Input
+                              id={`max-${qIndex}`}
+                              type="number"
+                              value={question.maxValue || 5}
+                              onChange={(e) =>
+                                updateQuestion(
+                                  qIndex,
+                                  "maxValue",
+                                  parseInt(e.target.value)
+                                )
+                              }
+                              disabled={isSubmitting}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label>Preview</Label>
+                          <div className="pt-4 px-2">
+                            <Slider
+                              value={[
+                                (question.minValue || 1) +
+                                  Math.floor(
+                                    (question.maxValue || 5) -
+                                      (question.minValue || 1)
+                                  ) /
+                                    2,
+                              ]}
+                              min={question.minValue || 1}
+                              max={question.maxValue || 5}
+                              step={1}
+                              disabled={true}
+                            />
+                            <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                              <span>{question.minValue || 1}</span>
+                              <span>{question.maxValue || 5}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex justify-between items-center">
+                          <Label>Options</Label>
                           <Button
                             type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeOption(index, optionIndex)}
-                            className="ml-2 text-muted-foreground hover:text-destructive"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addOption(qIndex)}
+                            disabled={isSubmitting}
                           >
-                            <X className="h-4 w-4" />
+                            <Plus className="h-4 w-4 mr-1" /> Add Option
                           </Button>
                         </div>
-                      ))}
-                      <Button type="button" onClick={() => addOption(index)} className="mt-2">
-                        Add Option
-                      </Button>
-                    </>
-                  )}
-                  {question.type === "linear" && (
-                    <div className="mt-4 space-y-4">
-                      <div className="flex justify-between gap-4">
-                        <div className="w-full">
-                          <Label htmlFor={`minLabel-${index}`} className="text-sm font-medium text-muted-foreground">
-                            Minimum Label
-                          </Label>
-                          <Input
-                            id={`minLabel-${index}`}
-                            value={question.minLabel || ""}
-                            onChange={(e) => updateQuestion(index, "minLabel", e.target.value)}
-                            placeholder="e.g., Not satisfied"
-                            className="mt-1"
-                          />
-                        </div>
-                        <div className="w-full">
-                          <Label htmlFor={`maxLabel-${index}`} className="text-sm font-medium text-muted-foreground">
-                            Maximum Label
-                          </Label>
-                          <Input
-                            id={`maxLabel-${index}`}
-                            value={question.maxLabel || ""}
-                            onChange={(e) => updateQuestion(index, "maxLabel", e.target.value)}
-                            placeholder="e.g., Very satisfied"
-                            className="mt-1"
-                          />
+                        <div className="space-y-2 mt-2">
+                          {question.options.map((option, oIndex) => (
+                            <div
+                              key={oIndex}
+                              className="flex items-center space-x-2"
+                            >
+                              <Input
+                                value={option}
+                                onChange={(e) =>
+                                  updateOption(qIndex, oIndex, e.target.value)
+                                }
+                                placeholder={`Option ${oIndex + 1}`}
+                                disabled={isSubmitting}
+                              />
+                              {question.options.length > 2 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeOption(qIndex, oIndex)}
+                                  disabled={isSubmitting}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-4">
-                        <Input
-                          type="number"
-                          value={question.min || 1}
-                          onChange={(e) => updateQuestion(index, "min", e.target.value)}
-                          placeholder="Min"
-                          className="w-20"
-                        />
-                        <Slider
-                          min={Number(question.min) || 1}
-                          max={Number(question.max) || 5}
-                          step={1}
-                          className="flex-grow"
-                        />
-                        <Input
-                          type="number"
-                          value={question.max || 5}
-                          onChange={(e) => updateQuestion(index, "max", e.target.value)}
-                          placeholder="Max"
-                          className="w-20"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-            <CardFooter className="flex justify-end px-0">
-              <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg px-8">
-                Update Poll
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            <CardFooter className="flex justify-end space-x-2 p-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/manage-polls")}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </CardFooter>
           </form>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
-

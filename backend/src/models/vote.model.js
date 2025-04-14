@@ -1,26 +1,36 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const voteSchema = new mongoose.Schema({
   pollId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Poll',
-    required: true
+    ref: "Poll",
+    required: true,
   },
-  selectedOptions: [{
-    type: String,
-    required: true
-  }],
+  responses: [
+    {
+      questionIdx: {
+        type: Number,
+        required: true,
+      },
+      selectedOptions: [
+        {
+          type: String,
+          required: true,
+        },
+      ],
+    },
+  ],
   voterToken: {
     type: String,
-    required: true
+    required: true,
   },
   timestamp: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 // Compound index for preventing duplicate votes
 voteSchema.index({ pollId: 1, voterToken: 1 }, { unique: true });
 
-export default mongoose.model('Vote', voteSchema);
+export default mongoose.model("Vote", voteSchema);

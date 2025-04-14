@@ -2,10 +2,17 @@
 
 import { useState, useEffect } from "react"
 
-export function PollTimer({ endTime }: { endTime: number }) {
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft())
+interface TimeLeft {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+}
 
-  function calculateTimeLeft() {
+export function PollTimer({ endTime }: { endTime: number }) {
+  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(calculateTimeLeft())
+
+  function calculateTimeLeft(): TimeLeft | null {
     const difference = endTime - Date.now()
     if (difference > 0) {
       return {
@@ -24,15 +31,17 @@ export function PollTimer({ endTime }: { endTime: number }) {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [])
+  }, [endTime]) // Add endTime as a dependency
 
   if (!timeLeft) {
     return <div className="text-sm text-muted-foreground mt-2">Poll Ended</div>
   }
 
+  // Hide days if there are none
   return (
     <div className="text-sm text-muted-foreground mt-2">
-      Time left: {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s
+      Time left: {timeLeft.days > 0 ? `${timeLeft.days}d ` : ''}
+      {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s
     </div>
   )
 }

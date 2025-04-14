@@ -1,26 +1,34 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { useAuth } from "@/lib/auth-context"
-import { useToast } from "@/components/ui/use-toast"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+  CardDescription,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/components/ui/use-toast";
+import { authAPI } from "@/lib/api";
 
 export default function ProfilePage() {
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [currentPassword, setCurrentPassword] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
-  const { user, isLoggedIn } = useAuth()
-  const { toast } = useToast()
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { user, isLoggedIn } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -28,94 +36,92 @@ export default function ProfilePage() {
         title: "Authentication required",
         description: "Please log in to view your profile",
         variant: "destructive",
-      })
-      router.push("/login")
-      return
+      });
+      router.push("/login");
+      return;
     }
 
-    if (user) {
-      setName(user.name)
-      setEmail(user.email)
+    fetchProfile();
+  }, [isLoggedIn, router, toast, user]);
+
+  const fetchProfile = async () => {
+    try {
+      const profileData = await authAPI.getProfile();
+      setName(profileData.name || "");
+      setEmail(profileData.email || "");
+    } catch (error) {
+      toast({
+        title: "Failed to load profile",
+        description:
+          error instanceof Error
+            ? error.message
+            : "An unexpected error occurred",
+        variant: "destructive",
+      });
     }
-  }, [isLoggedIn, router, toast, user])
+  };
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     try {
-      // TODO: Implement actual profile update logic
-      // const response = await fetch('/api/user/profile', {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ name, email }),
-      // })
-      // const data = await response.json()
-      // if (!response.ok) throw new Error(data.message)
-
-      // Mock response
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Call the update profile API endpoint
+      await authAPI.updateProfile({ name, email });
 
       toast({
         title: "Profile updated",
         description: "Your profile has been updated successfully",
-      })
+      });
     } catch (error) {
       toast({
         title: "Update failed",
-        description: error instanceof Error ? error.message : "Failed to update profile",
+        description:
+          error instanceof Error ? error.message : "Failed to update profile",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (newPassword !== confirmPassword) {
       toast({
         title: "Passwords don't match",
         description: "New password and confirmation must match",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
-      // TODO: Implement actual password change logic
-      // const response = await fetch('/api/user/password', {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ currentPassword, newPassword }),
-      // })
-      // const data = await response.json()
-      // if (!response.ok) throw new Error(data.message)
+      // Call the change password API endpoint
+      await authAPI.changePassword({ currentPassword, newPassword });
 
-      // Mock response
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      setCurrentPassword("")
-      setNewPassword("")
-      setConfirmPassword("")
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
 
       toast({
         title: "Password changed",
         description: "Your password has been changed successfully",
-      })
+      });
     } catch (error) {
       toast({
         title: "Update failed",
-        description: error instanceof Error ? error.message : "Failed to change password",
+        description:
+          error instanceof Error ? error.message : "Failed to change password",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   if (!user) {
     return (
@@ -125,7 +131,7 @@ export default function ProfilePage() {
           <p className="mt-4 text-lg">Loading profile...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -136,7 +142,9 @@ export default function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle>Profile Information</CardTitle>
-            <CardDescription>Update your account's profile information</CardDescription>
+            <CardDescription>
+              Update your account's profile information
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleProfileUpdate}>
@@ -175,7 +183,9 @@ export default function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle>Change Password</CardTitle>
-            <CardDescription>Ensure your account is using a secure password</CardDescription>
+            <CardDescription>
+              Ensure your account is using a secure password
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handlePasswordChange}>
@@ -216,7 +226,7 @@ export default function ProfilePage() {
               </div>
               <CardFooter className="flex justify-end px-0 mt-6">
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Changing..." : "Change Password"}
+                  {isLoading ? "Updating..." : "Change Password"}
                 </Button>
               </CardFooter>
             </form>
@@ -224,6 +234,5 @@ export default function ProfilePage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }
-

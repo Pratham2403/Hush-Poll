@@ -8,7 +8,7 @@ import { authAPI } from "./api";
 export type UserRole = "guest" | "user" | "admin";
 
 export type User = {
-  // id: string;
+  _id: string;
   name: string;
   email: string;
   role: UserRole;
@@ -21,40 +21,52 @@ type AuthContextType = {
   logout: () => void;
   isAdmin: boolean;
   isLoggedIn: boolean;
+  isLoading: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     // Check for existing session
-    const storedUser = localStorage.getItem("user");
     const token = localStorage.getItem("token");
 
-    if (storedUser && token) {
-      setUser(JSON.parse(storedUser));
-
+    if (token) {
       // Verify token is still valid with the backend
       authAPI
         .getProfile()
         .then((data) => {
-          // Update user data if needed
-          const updatedUser = {
-            // id: data._id,
+          // Update user data
+          const userData = {
+            _id: data._id,
             name: data.name,
             email: data.email,
             role: data.role,
           };
-          setUser(updatedUser);
-          localStorage.setItem("user", JSON.stringify(updatedUser));
+          setUser(userData);
         })
-        .catch(() => {
-          // If token is invalid, logout
-          logout();
+        .catch((error) => {
+          // Only logout if it's specifically an invalid token error (401)
+          // For other errors, keep the user session intact
+          if (
+            error.response &&
+            error.response.status === 401 &&
+            error.response.data.message === "Invalid token"
+          ) {
+            logout();
+          }
+          // For all other errors, we keep the user logged in
+          console.error("Profile fetch error:", error);
+        })
+        .finally(() => {
+          setIsLoading(false);
         });
+    } else {
+      setIsLoading(false);
     }
   }, []);
 
@@ -63,14 +75,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await authAPI.login(email, password);
 
       const userData: User = {
-        // id: data.user._id,
+        _id: data.user._id,
         name: data.user.name,
         email: data.user.email,
         role: data.user.role,
       };
 
       setUser(userData);
-      localStorage.setItem("user", JSON.stringify(userData));
       localStorage.setItem("token", data.token);
 
       toast({
@@ -95,14 +106,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await authAPI.register(name, email, password);
 
       const userData: User = {
-        // id: data.user._id,
+        _id: data.user._id,
         name: data.user.name,
         email: data.user.email,
         role: data.user.role,
       };
 
       setUser(userData);
-      localStorage.setItem("user", JSON.stringify(userData));
       localStorage.setItem("token", data.token);
 
       toast({
@@ -124,7 +134,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("user");
     localStorage.removeItem("token");
     toast({
       title: "Logged out",
@@ -141,6 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         isAdmin: user?.role === "admin",
         isLoggedIn: !!user,
+        isLoading,
       }}
     >
       {children}

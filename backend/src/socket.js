@@ -1,23 +1,73 @@
-import logger from './utils/logger.js';
+import logger from "./utils/logger.js";
 
-export const setupSocketHandlers = (io) => {
-  io.on('connection', (socket) => {
-    logger.info(`Client connected: ${socket.id}`);
+/**
+ * Initialize and configure Socket.IO for real-time communication
+ * @param {Object} io - Socket.IO server instance
+ */
+const initSocket = (io) => {
+  if (!io) {
+    logger.error(
+      "Failed to initialize WebSocket: Socket.IO instance is undefined"
+    );
+    return null;
+  }
 
-    socket.on('joinPoll', (pollId) => {
-      socket.join(pollId);
-      logger.info(`Client ${socket.id} joined poll ${pollId}`);
+  try {
+    // Log socket initialization
+    logger.info("Initializing WebSocket server (Socket.IO)");
+
+    // Set up WebSocket connection
+    io.on("connection", (socket) => {
+      logger.info(`New WebSocket connection established: ${socket.id}`);
+
+      // Join a poll room to receive updates for specific poll
+      socket.on("joinPoll", (pollId) => {
+        if (!pollId) {
+          logger.warn(
+            `Socket ${socket.id} attempted to join poll room without valid pollId`
+          );
+          return;
+        }
+
+        socket.join(pollId);
+        logger.info(`Socket ${socket.id} joined poll room: ${pollId}`);
+      });
+
+      // Leave a poll room
+      socket.on("leavePoll", (pollId) => {
+        if (!pollId) {
+          logger.warn(
+            `Socket ${socket.id} attempted to leave poll room without valid pollId`
+          );
+          return;
+        }
+
+        socket.leave(pollId);
+        logger.info(`Socket ${socket.id} left poll room: ${pollId}`);
+      });
+
+      // Handle client disconnection
+      socket.on("disconnect", (reason) => {
+        logger.info(`WebSocket disconnected: ${socket.id}, reason: ${reason}`);
+      });
+
+      // Handle errors on socket
+      socket.on("error", (error) => {
+        logger.error(`Socket ${socket.id} error:`, error);
+      });
     });
 
-    socket.on('leavePoll', (pollId) => {
-      socket.leave(pollId);
-      logger.info(`Client ${socket.id} left poll ${pollId}`);
+    // Global error handler for the socket server
+    io.engine.on("connection_error", (err) => {
+      logger.error("Socket.IO connection error:", err);
     });
 
-    socket.on('disconnect', () => {
-      logger.info(`Client disconnected: ${socket.id}`);
-    });
-  });
-
-  return io;
+    logger.info("WebSocket server initialized successfully");
+    return io;
+  } catch (error) {
+    logger.error("Failed to initialize WebSocket server:", error);
+    return null;
+  }
 };
+
+export default initSocket;

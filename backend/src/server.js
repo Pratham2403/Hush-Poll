@@ -22,14 +22,9 @@ const app = express();
 const server = http.createServer(app);
 
 // Configure CORS
-const corsOptions = {
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  credentials: true,
-  optionsSuccessStatus: 200,
-};
 
 // Middleware
-app.use(cors(corsOptions));
+app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
@@ -47,9 +42,7 @@ app.get("/api/health", (req, res) => {
 app.use(errorHandler);
 
 // Initialize WebSocket server
-const io = new Server(server, {
-  cors: corsOptions,
-});
+const io = new Server(server);
 
 initSocket(io);
 

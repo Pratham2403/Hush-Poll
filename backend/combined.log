@@ -155,3 +155,26 @@
 {"level":"info","message":"Connected to MongoDB","timestamp":"2025-04-16T10:37:12.351Z"}
 {"level":"info","message":"Server is running on port 5000","timestamp":"2025-04-16T10:37:12.352Z"}
 {"level":"info","message":"WebSocket (Socket.IO) server is available and ready","timestamp":"2025-04-16T10:37:12.352Z"}
+{"level":"info","message":"Initializing WebSocket server (Socket.IO)","timestamp":"2025-04-16T11:04:36.391Z"}
+{"level":"info","message":"WebSocket server initialized successfully","timestamp":"2025-04-16T11:04:36.393Z"}
+{"level":"info","message":"Initializing WebSocket server (Socket.IO)","timestamp":"2025-04-16T11:04:39.453Z"}
+{"level":"info","message":"WebSocket server initialized successfully","timestamp":"2025-04-16T11:04:39.455Z"}
+{"level":"info","message":"Connected to MongoDB","timestamp":"2025-04-16T11:04:43.885Z"}
+{"level":"info","message":"Server is running on port 5000","timestamp":"2025-04-16T11:04:43.886Z"}
+{"level":"info","message":"WebSocket (Socket.IO) server is available and ready","timestamp":"2025-04-16T11:04:43.886Z"}
+{"level":"info","message":"Initializing WebSocket server (Socket.IO)","timestamp":"2025-04-16T11:04:54.473Z"}
+{"level":"info","message":"WebSocket server initialized successfully","timestamp":"2025-04-16T11:04:54.475Z"}
+{"level":"info","message":"Initializing WebSocket server (Socket.IO)","timestamp":"2025-04-16T11:04:55.266Z"}
+{"level":"info","message":"WebSocket server initialized successfully","timestamp":"2025-04-16T11:04:55.268Z"}
+{"level":"info","message":"Initializing WebSocket server (Socket.IO)","timestamp":"2025-04-16T11:04:56.935Z"}
+{"level":"info","message":"WebSocket server initialized successfully","timestamp":"2025-04-16T11:04:56.937Z"}
+{"level":"info","message":"Connected to MongoDB","timestamp":"2025-04-16T11:04:58.720Z"}
+{"level":"info","message":"Server is running on port 5000","timestamp":"2025-04-16T11:04:58.722Z"}
+{"level":"info","message":"WebSocket (Socket.IO) server is available and ready","timestamp":"2025-04-16T11:04:58.722Z"}
+{"level":"info","message":"Initializing WebSocket server (Socket.IO)","timestamp":"2025-04-16T11:05:01.982Z"}
+{"level":"info","message":"WebSocket server initialized successfully","timestamp":"2025-04-16T11:05:01.984Z"}
+{"level":"info","message":"Initializing WebSocket server (Socket.IO)","timestamp":"2025-04-16T11:05:02.614Z"}
+{"level":"info","message":"WebSocket server initialized successfully","timestamp":"2025-04-16T11:05:02.615Z"}
+{"level":"info","message":"Connected to MongoDB","timestamp":"2025-04-16T11:05:03.185Z"}
+{"level":"info","message":"Server is running on port 5000","timestamp":"2025-04-16T11:05:03.187Z"}
+{"level":"info","message":"WebSocket (Socket.IO) server is available and ready","timestamp":"2025-04-16T11:05:03.187Z"}

@@ -161,7 +161,6 @@ Hush Poll follows a modern web application architecture with separate frontend a
    PORT=5000
    MONGODB_URI=mongodb://localhost:27017/hush-poll
    JWT_SECRET=your_jwt_secret_key
-   FRONTEND_URL=http://localhost:3000
    ```
 
 4. Initialize the database (if needed):

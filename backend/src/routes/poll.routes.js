@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticate } from "../middleware/auth.middleware.js";
+import { authenticate, requireAuth } from "../middleware/auth.middleware.js";
 import {
   createPoll,
   getPolls,
@@ -16,18 +16,19 @@ import { asyncHandler } from "../utils/errors.js";
 const router = express.Router();
 
 // Wrap all route handlers with asyncHandler to properly handle promise rejections
-router.post("/", authenticate, asyncHandler(createPoll));
+router.post("/", authenticate, requireAuth, asyncHandler(createPoll));
 router.get("/", asyncHandler(getPolls));
-router.get("/user", authenticate, asyncHandler(getUserPolls));
+router.get("/user", authenticate, requireAuth, asyncHandler(getUserPolls));
 router.get(
   "/available-private",
   authenticate,
+  requireAuth,
   asyncHandler(getAvailablePrivatePolls)
 );
-router.get("/:id", asyncHandler(getPoll));
-router.post("/:id/vote", asyncHandler(submitVote));
-router.get("/:id/results", asyncHandler(getResults));
-router.delete("/:id", authenticate, asyncHandler(deletePoll));
-router.put("/:id", authenticate, asyncHandler(updatePoll));
+router.get("/:id", authenticate, asyncHandler(getPoll));
+router.post("/:id/vote", authenticate, requireAuth, asyncHandler(submitVote));
+router.get("/:id/results", authenticate, asyncHandler(getResults));
+router.delete("/:id", authenticate, requireAuth, asyncHandler(deletePoll));
+router.put("/:id", authenticate, requireAuth, asyncHandler(updatePoll));
 
 export default router;

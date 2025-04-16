@@ -37,6 +37,22 @@ import { useToast } from "@/components/ui/use-toast";
 import { pollsAPI } from "@/lib/api";
 import { PollTypes } from "../../../shared/poll.types.js";
 
+/**
+ * MCP: This function handles the creation of a poll and its associated logic.
+ * It includes form validation, API calls, and state management.
+ * Private Polls are supported with email list or regex restrictions.
+ * If the poll(private or Public) is created successfully, it redirects to the "my polls" page and not display the section to copy the Poll Link.
+ * For Private Polls : Enter comma-separated email addresses or regex pattern to restrict access.
+ * Only users with matching email addresses can access the poll.
+ * Private Poll Flow :
+ * 1. User creates a poll and selects "Private Poll".
+ * 2. User enters a comma-separated list of email addresses or a regex pattern.
+ * 3. The poll is created with the specified restrictions.
+ * 4. Only users with matching email addresses will be able to see the Poll and Vote in it.
+ * 5. By default the Person who created a Private Poll can Vote in it.
+ * @returns JSX.Element
+ */
+
 export default function CreatePollPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -199,12 +215,15 @@ export default function CreatePollPage() {
         description: "Your poll is now available for voting",
       });
 
-      // Set poll created state for success page
+      // For private polls, redirect to my-polls page immediately
+      if (isPrivate) {
+        router.push("/my-polls");
+        return;
+      }
+
+      // For public polls, set poll created state for success page
       setPollCreated(true);
       setPollLink(`${window.location.origin}/poll/${response._id}`);
-
-      // Redirect to my-polls page after successful creation
-      router.push("/my-polls");
     } catch (error) {
       toast({
         title: "Failed to create poll",

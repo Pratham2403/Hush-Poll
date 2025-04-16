@@ -186,6 +186,15 @@ export const getPoll = async (req, res) => {
     const now = new Date();
     const isExpired = now > poll.expiration;
 
+    // If user is admin, they can access any poll
+    if (req.user && req.user.role === "admin") {
+      return res.json({
+        ...poll.toObject(),
+        isExpired,
+        isAdmin: true,
+      });
+    }
+
     // If poll is public, everyone can access it
     if (poll.isPublic) {
       return res.json({
@@ -203,11 +212,8 @@ export const getPoll = async (req, res) => {
       );
     }
 
-    // 2. Check if user is the creator or admin
-    if (
-      (poll.creator && poll.creator.equals(req.user._id)) ||
-      req.user.role === "admin"
-    ) {
+    // 2. Check if user is the creator
+    if (poll.creator && poll.creator.equals(req.user._id)) {
       return res.json({
         ...poll.toObject(),
         isExpired,
@@ -257,8 +263,13 @@ export const getPoll = async (req, res) => {
 
 export const submitVote = async (req, res) => {
   try {
-    const { responses, voterToken } = req.body;
+    const { responses } = req.body;
     const pollId = req.params.id;
+
+    // Check if user is authenticated
+    if (!req.user) {
+      throw new ApiError(401, "Authentication required to vote in polls");
+    }
 
     const poll = await Poll.findById(pollId);
     if (!poll) {
@@ -270,6 +281,48 @@ export const submitVote = async (req, res) => {
     if (now > poll.expiration) {
       throw new ApiError(400, "Poll has expired and no longer accepts votes");
     }
+
+    // If private poll, verify user has access
+    if (!poll.isPublic) {
+      // Admin can always access
+      if (req.user.role === "admin") {
+        // Continue with voting
+      }
+      // Check if user is the creator
+      else if (poll.creator && poll.creator.equals(req.user._id)) {
+        // Continue with voting
+      }
+      // Check if user email is in allowed list
+      else {
+        const userEmailHash = hashEmail(req.user.email);
+        const hasEmailAccess =
+          poll.encryptedAllowedEmails &&
+          poll.encryptedAllowedEmails.includes(userEmailHash);
+
+        // Check if user email matches regex pattern
+        let hasRegexAccess = false;
+        if (poll.encryptedEmailRegex) {
+          try {
+            const decryptedRegex = decryptRegexPattern(
+              poll.encryptedEmailRegex
+            );
+            hasRegexAccess = new RegExp(decryptedRegex).test(req.user.email);
+          } catch (error) {
+            logger.error("Error decrypting regex pattern:", error);
+          }
+        }
+
+        if (!hasEmailAccess && !hasRegexAccess) {
+          throw new ApiError(
+            403,
+            "You don't have access to vote in this private poll"
+          );
+        }
+      }
+    }
+
+    // Create a unique voter token based on user ID to prevent duplicate votes
+    const voterToken = req.user._id.toString();
 
     // Encrypt voter token for privacy
     const encryptedToken = encryptData(voterToken);
@@ -404,6 +457,54 @@ export const getResults = async (req, res) => {
     const poll = await Poll.findById(req.params.id);
     if (!poll) {
       throw new ApiError(404, "Poll not found");
+    }
+
+    // Admin can access any poll results
+    if (req.user && req.user.role === "admin") {
+      // Continue to get results
+    }
+    // For private polls, check access permissions
+    else if (!poll.isPublic) {
+      // If no user is logged in, deny access
+      if (!req.user) {
+        throw new ApiError(
+          401,
+          "Authentication required to access private poll results"
+        );
+      }
+
+      // Check if user is the creator
+      const isCreator = poll.creator && poll.creator.equals(req.user._id);
+      if (isCreator) {
+        // Continue to get results
+      } else {
+        // Check if user email hash matches any in the allowed list
+        const userEmailHash = hashEmail(req.user.email);
+        const hasEmailAccess =
+          poll.encryptedAllowedEmails &&
+          poll.encryptedAllowedEmails.includes(userEmailHash);
+
+        // Check if user email matches the encrypted regex pattern
+        let hasRegexAccess = false;
+        if (poll.encryptedEmailRegex) {
+          try {
+            const decryptedRegex = decryptRegexPattern(
+              poll.encryptedEmailRegex
+            );
+            hasRegexAccess = new RegExp(decryptedRegex).test(req.user.email);
+          } catch (error) {
+            logger.error("Error decrypting regex pattern:", error);
+          }
+        }
+
+        // If no access granted, deny access
+        if (!hasEmailAccess && !hasRegexAccess) {
+          throw new ApiError(
+            403,
+            "You don't have access to this private poll's results"
+          );
+        }
+      }
     }
 
     // Get results for each question

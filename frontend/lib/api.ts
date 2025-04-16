@@ -217,10 +217,7 @@ export const pollsAPI = {
   },
 
   // Submit a vote for a poll
-  submitVote: async (
-    pollId: string,
-    voteData: { selectedOptions: string[]; voterToken: string }
-  ) => {
+  submitVote: async (pollId: string, voteData: { responses: any[] }) => {
     try {
       const response = await api.post(`/polls/${pollId}/vote`, voteData);
       return response.data;

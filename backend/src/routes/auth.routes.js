@@ -5,6 +5,7 @@ import {
   getProfile,
   updateProfile,
   changePassword,
+  testAuth
 } from "../controllers/auth.controller.js";
 import { authenticate } from "../middleware/auth.middleware.js";
 import { asyncHandler } from "../utils/errors.js";
@@ -17,5 +18,8 @@ router.post("/login", asyncHandler(login));
 router.get("/profile", authenticate, asyncHandler(getProfile));
 router.put("/profile", authenticate, asyncHandler(updateProfile));
 router.put("/password", authenticate, asyncHandler(changePassword));
+
+// Add a test route
+router.get("/test-auth", authenticate, asyncHandler(testAuth));
 
 export default router;

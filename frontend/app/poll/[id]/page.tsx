@@ -81,10 +81,12 @@ export default function PollDetailPage() {
 
         // Initialize responses array with empty values for each question
         if (data.questions) {
-          const initialResponses = data.questions.map((question, index) => ({
-            questionIdx: index,
-            selectedOptions: [],
-          }));
+          const initialResponses = data.questions.map(
+            (question: any, index: number) => ({
+              questionIdx: index,
+              selectedOptions: [],
+            })
+          );
           setResponses(initialResponses);
         }
       } catch (error: any) {
@@ -95,6 +97,15 @@ export default function PollDetailPage() {
           if (error.response.status === 401) {
             errorMessage =
               "Authentication required to access this private poll. Please log in to continue.";
+
+            // Automatically redirect to login for private polls
+            router.push(`/login?redirect=/poll/${id}`);
+            toast({
+              title: "Private Poll",
+              description: errorMessage,
+              variant: "destructive",
+            });
+            return;
           } else if (error.response.status === 403) {
             errorMessage = "You don't have permission to view this poll.";
           } else if (error.response.status === 404) {
@@ -120,10 +131,21 @@ export default function PollDetailPage() {
     };
 
     fetchPoll();
-  }, [id, toast, authLoading]);
+  }, [id, toast, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check if user is logged in
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to vote in this poll",
+        variant: "destructive",
+      });
+      router.push(`/login?redirect=/poll/${id}`);
+      return;
+    }
 
     // Validate that all questions have responses
     const hasEmptyResponses = responses.some(
@@ -142,17 +164,9 @@ export default function PollDetailPage() {
     setIsSubmitting(true);
 
     try {
-      // Get or create voter token
-      let voterToken = localStorage.getItem("voter_token");
-      if (!voterToken) {
-        voterToken = uuidv4();
-        localStorage.setItem("voter_token", voterToken);
-      }
-
-      // Submit vote
+      // Submit vote - no need to pass voter token as the backend will use user ID
       await pollsAPI.submitVote(id as string, {
         responses,
-        voterToken,
       });
 
       // Mark as voted in local storage
@@ -171,6 +185,7 @@ export default function PollDetailPage() {
         if (error.response.status === 401) {
           errorMessage =
             "Authentication required to vote in this poll. Please log in to continue.";
+          router.push(`/login?redirect=/poll/${id}`);
         } else if (error.response.status === 403) {
           errorMessage = "You don't have permission to vote in this poll.";
         } else if (error.response.status === 404) {

@@ -100,47 +100,54 @@ export default function ResultsPage() {
 
     const fetchData = async () => {
       try {
-        // Fetch poll data and results in parallel
-        const [pollData, resultsData] = await Promise.all([
-          pollsAPI.getPoll(id as string),
-          pollsAPI.getResults(id as string),
-        ]);
-
+        // First fetch the poll to check if it's private
+        const pollData = await pollsAPI.getPoll(id as string);
         setPoll(pollData);
-        setResults(resultsData);
 
-        // Initialize socket connection after successful data fetch
-        initializeSocketConnection(pollData._id);
-      } catch (error: any) {
-        let errorMessage = "Failed to load poll results";
+        try {
+          // Then fetch results - this will throw 401/403 if not allowed to see private poll results
+          const resultsData = await pollsAPI.getResults(id as string);
+          setResults(resultsData);
 
-        if (error.response) {
-          // Handle specific error cases
-          if (error.response.status === 401) {
-            errorMessage =
-              "Authentication required to access this poll's results. Please log in to continue.";
-          } else if (error.response.status === 403) {
-            errorMessage =
-              "You don't have permission to view this poll's results.";
-          } else if (error.response.status === 404) {
-            errorMessage = "Poll not found. It may have been deleted.";
-          } else if (error.response.data && error.response.data.message) {
-            errorMessage = error.response.data.message;
-          }
-        } else if (error instanceof Error) {
-          errorMessage = error.message;
+          // Initialize socket connection after successful data fetch
+          initializeSocketConnection(pollData._id);
+        } catch (error: any) {
+          handleError(error);
         }
-
-        setError(errorMessage);
-
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
+      } catch (error: any) {
+        handleError(error);
       } finally {
         setIsLoading(false);
       }
+    };
+
+    const handleError = (error: any) => {
+      let errorMessage = "Failed to load poll results";
+
+      if (error.response) {
+        // Handle specific error cases
+        if (error.response.status === 401) {
+          errorMessage =
+            "Authentication required to access this poll's results. Please log in to continue.";
+        } else if (error.response.status === 403) {
+          errorMessage =
+            "You don't have permission to view this poll's results.";
+        } else if (error.response.status === 404) {
+          errorMessage = "Poll not found. It may have been deleted.";
+        } else if (error.response.data && error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      setError(errorMessage);
+
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     };
 
     fetchData();

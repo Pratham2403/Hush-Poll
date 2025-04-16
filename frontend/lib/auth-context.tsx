@@ -50,17 +50,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(userData);
         })
         .catch((error) => {
+          console.error("Profile fetch error:", error);
+
           // Only logout if it's specifically an invalid token error (401)
           // For other errors, keep the user session intact
           if (
             error.response &&
             error.response.status === 401 &&
-            error.response.data.message === "Invalid token"
+            (error.response.data.message === "Invalid token" ||
+              error.response.data.message === "Authentication failed")
           ) {
+            console.warn("Invalid token detected, logging out user");
             logout();
           }
           // For all other errors, we keep the user logged in
-          console.error("Profile fetch error:", error);
         })
         .finally(() => {
           setIsLoading(false);

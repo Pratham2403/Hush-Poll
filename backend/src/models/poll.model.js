@@ -20,6 +20,11 @@ const pollSchema = new mongoose.Schema(
     },
     questions: [
       {
+        text: {
+          type: String,
+          required: true,
+          trim: true,
+        },
         options: [
           {
             type: String,
@@ -34,16 +39,16 @@ const pollSchema = new mongoose.Schema(
         minValue: {
           type: Number,
           default: 1,
-          required : function () {
+          required: function () {
             return this.type === PollTypes.LINEAR;
-          }
+          },
         },
         maxValue: {
           type: Number,
           default: 5,
-          required : function () {
+          required: function () {
             return this.type === PollTypes.LINEAR;
-          }
+          },
         },
       },
     ],

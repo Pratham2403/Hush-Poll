@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,15 +22,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get("redirect") || "/";
   const { login, isLoggedIn } = useAuth();
   const { toast } = useToast();
 
   // Redirect if user is already logged in
   useEffect(() => {
     if (isLoggedIn) {
-      router.push("/");
+      router.push(redirectPath);
     }
-  }, [isLoggedIn, router]);
+  }, [isLoggedIn, router, redirectPath]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +51,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       // No need to show toast here as it's already shown in the login function
-      router.push("/");
+      router.push(redirectPath);
     } catch (error) {
       // No need to show toast here as it's already shown in the login function
       console.error("Login error:", error);
@@ -68,6 +70,11 @@ export default function LoginPage() {
           <CardDescription>
             Enter your credentials to access your account
           </CardDescription>
+          {redirectPath !== "/" && (
+            <div className="text-sm text-amber-600 mt-2">
+              Login required to access the requested content
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

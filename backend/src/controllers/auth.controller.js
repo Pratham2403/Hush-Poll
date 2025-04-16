@@ -190,3 +190,24 @@ export const changePassword = async (req, res, next) => {
     next(new ApiError(400, "Failed to change password"));
   }
 };
+
+// Add a test endpoint to check authentication
+export const testAuth = async (req, res) => {
+  if (req.user) {
+    res.status(200).json({
+      status: "success",
+      message: "User is authenticated",
+      user: {
+        _id: req.user._id,
+        email: req.user.email,
+        name: req.user.name,
+        role: req.user.role,
+      },
+    });
+  } else {
+    res.status(401).json({
+      status: "fail",
+      message: "User is not authenticated",
+    });
+  }
+};

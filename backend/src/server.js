@@ -22,9 +22,15 @@ const app = express();
 const server = http.createServer(app);
 
 // Configure CORS
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
 
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -42,7 +48,13 @@ app.get("/api/health", (req, res) => {
 app.use(errorHandler);
 
 // Initialize WebSocket server
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || "*",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 
 initSocket(io);
 
@@ -52,12 +64,19 @@ app.set("io", io);
 // Connection to MongoDB
 export const initializeServer = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/polling-app");
+    await mongoose.connect(
+      process.env.MONGODB_URI || "mongodb://localhost:27017/polling-app"
+    );
     logger.info("Connected to MongoDB");
 
     const PORT = process.env.PORT || 5000;
-    server.listen(PORT, () => {
-      logger.info(`Server is running on port ${PORT}`);
+    const HOST = process.env.HOST || "0.0.0.0"; // Listen on all network interfaces
+
+    server.listen(PORT, HOST, () => {
+      logger.info(`Server is running on http://${HOST}:${PORT}`);
+      logger.info(
+        `Server is accessible on your network at http://YOUR_LOCAL_IP:${PORT}`
+      );
 
       // Log WebSocket initialization status
       const socketInstance = app.get("io");

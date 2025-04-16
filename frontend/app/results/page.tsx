@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 type Poll = {
   _id: string;
-  question: string;
+  title: string;
   options: string[];
   expiration: string;
   createdAt: string;
@@ -32,6 +32,7 @@ export default function ResultsPage() {
     const fetchPolls = async () => {
       try {
         const data = await pollsAPI.getPolls();
+        
         setPolls(data);
       } catch (error) {
         toast({
@@ -46,7 +47,7 @@ export default function ResultsPage() {
 
     fetchPolls();
   }, [toast]);
-
+  
   const isPollActive = (expirationDate: string) => {
     return new Date(expirationDate) > new Date();
   };
@@ -76,7 +77,7 @@ export default function ResultsPage() {
             <Card key={poll._id} className="overflow-hidden">
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle>{poll.question}</CardTitle>
+                  <CardTitle>{poll.title}</CardTitle>
                   <Badge
                     variant={
                       isPollActive(poll.expiration) ? "default" : "secondary"

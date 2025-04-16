@@ -52,7 +52,7 @@ app.set("io", io);
 // Connection to MongoDB
 export const initializeServer = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/polling-app");
     logger.info("Connected to MongoDB");
 
     const PORT = process.env.PORT || 5000;

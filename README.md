@@ -283,4 +283,4 @@ This project is licensed under the MIT License.
 
 ## 📞 Support
 
-For support, email any 22je0718@iitism.ac.in, 22je0717@iitism.ac.in and 22je0382@iitism.ac.in or open an issue in the repository.
+For support, email any 22je0718@iitism.ac.in, 22je0719@iitism.ac.in and 22je0382@iitism.ac.in or open an issue in the repository.
